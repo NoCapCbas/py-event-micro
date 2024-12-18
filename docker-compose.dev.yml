@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  inventory_service:
+    build:
+      context: ./inventory
+      dockerfile: ../dockerfile.fastapi
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./inventory:/app
+    environment:
+      - ENVIRONMENT=development
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  payments_service:
+    build:
+      context: ./payments
+      dockerfile: ../dockerfile.fastapi
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./payments:/app
+    environment:
+      - ENVIRONMENT=development
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+
