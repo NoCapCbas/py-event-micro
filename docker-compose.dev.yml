@@ -4,30 +4,66 @@ services:
   inventory_service:
     build:
       context: ./inventory
-      dockerfile: ../dockerfile.fastapi
+      dockerfile: dockerfile.fastapi
     ports:
       - "8000:8000"
     volumes:
       - ./inventory:/app
     environment:
       - ENVIRONMENT=development
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - microservices
 
   payments_service:
     build:
       context: ./payments
-      dockerfile: ../dockerfile.fastapi
+      dockerfile: dockerfile.fastapi
     ports:
       - "8001:8000"
     volumes:
       - ./payments:/app
     environment:
       - ENVIRONMENT=development
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - microservices
+
+  delivery_service:
+    build:
+      context: ./delivery
+      dockerfile: dockerfile.fastapi
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./delivery:/app
+    environment:
+      - ENVIRONMENT=development
+    networks:
+      - microservices
+
+  users_service:
+    build:
+      context: ./users
+      dockerfile: dockerfile.fastapi
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./users:/app
+    environment:
+      - ENVIRONMENT=development
+    networks:
+      - microservices
 
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - microservices
+
+networks:
+  microservices:
+    driver: bridge
 
 
