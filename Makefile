@@ -1,11 +1,11 @@
 dev-up:
-	docker compose -f docker-compose.dev.yml up -d
+	docker compose --env-file .env -f docker-compose.dev.yml up -d
 
 dev-down:
-	docker compose -f docker-compose.dev.yml down
+	docker compose --env-file .env -f docker-compose.dev.yml down
 
 dev-build:
-	docker compose -f docker-compose.dev.yml build
+	docker compose --env-file .env -f docker-compose.dev.yml build
 
 help:
 	@echo "Usage: make [command]"

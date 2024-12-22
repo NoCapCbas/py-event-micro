@@ -53,14 +53,14 @@ services:
     networks:
       - microservices
 
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - ./data/redis:/data
-    networks:
-      - microservices
+  # redis:
+  #   image: redis:alpine
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - ./data/redis:/data
+  #   networks:
+  #     - microservices
 
   redis_insight:
     image: redis/redisinsight:latest
@@ -68,6 +68,19 @@ services:
       - "5540:5540"
     volumes:
       - ./data/redisinsight:/db
+    networks:
+      - microservices
+
+  pgadmin:
+    image: dpage/pgadmin4
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
+      - PGADMIN_SERVER_JSON_FILE=/pgadmin4/servers.json
+    volumes:
+      - ./data/pgadmin/servers.json:/pgadmin4/servers.json
     networks:
       - microservices
 
