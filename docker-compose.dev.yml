@@ -62,6 +62,15 @@ services:
     networks:
       - microservices
 
+  redis_insight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    volumes:
+      - ./data/redisinsight:/db
+    networks:
+      - microservices
+
 networks:
   microservices:
     driver: bridge

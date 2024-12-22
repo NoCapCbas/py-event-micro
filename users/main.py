@@ -14,6 +14,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from common.rate_limiter import RateLimitMiddleware
 from common.logger import LoggerMiddleware
 from common.config import settings
+from common.events import (
+    EventPublisher, 
+    EventSubscriber,
+    UserEvents,
+    Topics,
+)
 
 
 # Connect to Redis
@@ -32,10 +38,15 @@ class User(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-    age: int = Field(..., ge=0, le=120, description="Age must be between 0 and 120")
     is_active: bool = True
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now().isoformat())
+    updated_at: datetime = Field(default_factory=lambda: datetime.now().isoformat())
+
+class UserExternal(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    is_active: bool
 
 class UserInterface(ABC):
     @abstractmethod
@@ -51,7 +62,7 @@ class UserInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_user(self, user_id: str):
+    def deactivate_user(self, user_id: str):
         pass
 
     @abstractmethod
@@ -63,8 +74,9 @@ class UserInterface(ABC):
         pass
 
 class UserRedisRepository(UserInterface):
-    def __init__(self, redis_client: Redis):
+    def __init__(self, redis_client: Redis, ttl: int = 60 * 60 * 24):
         self.redis_client = redis_client
+        self.ttl = ttl
  
     async def get_all_users(self):
         keys = await self.redis_client.keys(f"{USER_KEY}:*")
@@ -82,9 +94,13 @@ class UserRedisRepository(UserInterface):
         await self.redis_client.json().set(f"{USER_KEY}:{user_id}", ".", user_data)
         return {"message": "User updated successfully", "user": user_data}
 
-    async def delete_user(self, user_id: str):
-        await self.redis_client.delete(f"{USER_KEY}:{user_id}")
-        return {"message": "User deleted successfully"}
+    async def deactivate_user(self, user_id: str):
+        user_data = await self.redis_client.json().get(f"{USER_KEY}:{user_id}")
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
+        user_data["is_active"] = False
+        await self.redis_client.json().set(f"{USER_KEY}:{user_id}", ".", user_data)
+        return {"message": "User deactivated successfully", "user": user_data}
 
     async def get_user_by_id(self, user_id: str):
         user_data = await self.redis_client.json().get(f"{USER_KEY}:{user_id}")
@@ -113,8 +129,8 @@ class UserService(UserInterface):
     async def update_user(self, user_id: str, user: User):
         return await self.user_cache_repository.update_user(user_id, user)
 
-    async def delete_user(self, user_id: str):
-        return await self.user_cache_repository.delete_user(user_id)
+    async def deactivate_user(self, user_id: str):
+        return await self.user_cache_repository.deactivate_user(user_id)
 
     async def get_user_by_id(self, user_id: str):
         return await self.user_cache_repository.get_user_by_id(user_id)
@@ -141,7 +157,20 @@ async def lifespan(app: FastAPI):
     app.state.logger = LoggerMiddleware(
         app_name="users"
     )
+    app.state.publisher = EventPublisher(
+        event_types=UserEvents,
+        redis_client=redis_client,
+        channel=Topics.USERS
+    )
+
+    app.state.subscriber = EventSubscriber(
+        event_types=UserEvents,
+        redis_client=redis_client,
+        channel=Topics.USERS
+    )
+    await app.state.subscriber.start_background()
     yield
+    await app.state.subscriber.stop()
 
 def create_app():
     # Initialize FastAPI
@@ -181,10 +210,16 @@ async def metrics():
 # Create User
 @app.post("/users", status_code=201)
 async def create_user(
-    user: User, 
+    user: UserExternal, 
     user_service: UserService = Depends(get_user_service_dependency)
 ):
-    return await user_service.create_user(user)
+    user_data = User(**user.model_dump())
+    await user_service.create_user(user_data)
+    await app.state.publisher.publish(UserEvents.USER_CREATED, user)
+    return {
+        "message": "User created successfully", 
+        "user": user.model_dump()
+    }
 
 # Get All Users
 @app.get("/users")
