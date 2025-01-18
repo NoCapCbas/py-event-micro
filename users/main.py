@@ -1,3 +1,4 @@
+from enum import Enum
 from fastapi import (
     FastAPI, 
     HTTPException, 
@@ -21,8 +22,6 @@ from common.events import (
     UserEvents,
     Topics,
 )
-
-
 
 class DatabaseClient:
     def __init__(
@@ -80,12 +79,17 @@ database_client = DatabaseClient(settings.DATABASE_URL)
 # Redis Key
 USER_KEY = "users"  # Redis key to store all users as JSON objects
 
+class Role(Enum):
+    ADMIN = "admin"
+    USER = "user"
+
 # User Model
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     first_name: str
     last_name: str
     email: EmailStr
+    role: Role = Role.USER
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now().isoformat())
     updated_at: datetime = Field(default_factory=lambda: datetime.now().isoformat())
@@ -303,19 +307,19 @@ def create_app():
 
 app = create_app()
 
-@app.get("/health")
+@app.get("/health", tags=["general"])
 async def health():
     # TODO: return the health of the service
     return {"status": "ok"}
 
-@app.get("/metrics")
+@app.get("/metrics", tags=["general"])
 async def metrics():
     # TODO: return the metrics of the service
     return {"status": "ok"}
 
 
 # Create User
-@app.post("/users", status_code=201)
+@app.post("/users", status_code=201, tags=["users"])
 async def create_user(
     user: UserExternal, 
 ):
@@ -331,19 +335,19 @@ async def create_user(
     }
 
 # Get All Users
-@app.get("/users")
+@app.get("/users", tags=["users"])
 async def get_all_users():
     return await app.state.user_service.get_all_users()
 
 # Get User by ID
-@app.get("/users/{user_id}")
+@app.get("/users/{user_id}", tags=["users"])
 async def get_user(
     user_id: str, 
 ):
     return await app.state.user_service.get_user_by_id(user_id)
 
 # Update User
-@app.put("/users/{user_id}")
+@app.put("/users/{user_id}", tags=["users"])
 async def update_user(
     user_id: str, 
     updated_user: User, 
@@ -351,7 +355,7 @@ async def update_user(
     return await app.state.user_service.update_user(user_id, updated_user)
 
 # Partially Update User (PATCH)
-@app.patch("/users/{user_id}")
+@app.patch("/users/{user_id}", tags=["users"])
 async def patch_user(
     user_id: str, 
     updates: dict, 
@@ -366,8 +370,33 @@ async def patch_user(
     return await app.state.user_service.update_user(user_id, user)
 
 # Delete User
-@app.delete("/users/{user_id}")
+@app.delete("/users/{user_id}", tags=["users"])
 async def delete_user(
     user_id: str, 
 ):
     return await app.state.user_service.delete_user(user_id)
+
+# auth routes
+@app.post("/auth/login", tags=["auth"])
+async def login(
+    user: UserExternal, 
+):
+    return await app.state.user_service.login(user)
+
+@app.post("/auth/register", tags=["auth"])
+async def register(
+    user: UserExternal, 
+):
+    return await app.state.user_service.register(user)
+
+@app.post("/auth/logout", tags=["auth"])
+async def logout(
+    user: UserExternal, 
+):
+    return await app.state.user_service.logout(user)
+
+
+
+
+
+
